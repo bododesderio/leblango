@@ -1,0 +1,50 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Django / project ----
+*.sqlite3
+staticfiles/
+media/
+uploads/
+*.log
+
+# ---- Environment & secrets ----
+.env
+.env.*
+.env.example
+
+# ---- IDEs / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Caches ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- Docker ----
+.docker/
+docker-compose.override.yml
+
+# ---- Node / frontend (if any) ----
+node_modules/
+npm-debug.log*
+yarn-error.log*
