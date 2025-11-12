@@ -8,10 +8,6 @@ from .permissions import IsManagerOrAdmin
 
 
 class ApproveSubmission(APIView):
-    """
-    Approve a library submission and create a published LibraryItem.
-    POST /api/admin/library/submissions/<int:pk>/approve
-    """
     permission_classes = [IsManagerOrAdmin]
 
     def post(self, request, pk):
@@ -29,13 +25,13 @@ class ApproveSubmission(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # FIXED: Use correct field name (submitted_by, not user)
         item = LibraryItem.objects.create(
             title=submission.title,
             description=submission.description,
             url=submission.url,
+            category=submission.category,
             is_published=True,
-            submitted_by=submission.submitted_by,
+            submitted_by=submission.user,
             source_submission=submission,
         )
 
@@ -52,15 +48,6 @@ class ApproveSubmission(APIView):
 
 
 class RejectSubmission(APIView):
-    """
-    Reject a library submission with optional reason.
-    POST /api/admin/library/submissions/<int:pk>/reject
-
-    Optional JSON body:
-    {
-        "reason": "Explanation for rejection"
-    }
-    """
     permission_classes = [IsManagerOrAdmin]
 
     def post(self, request, pk):

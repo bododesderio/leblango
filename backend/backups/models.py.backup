@@ -14,9 +14,6 @@ class DictionaryEntry(models.Model):
 
     class Meta:
         ordering = ["lemma"]
-        indexes = [
-            models.Index(fields=['lemma']),
-        ]
 
     def __str__(self):
         return self.lemma
@@ -29,11 +26,6 @@ class EntryVariant(models.Model):
         on_delete=models.CASCADE,
     )
     alias = models.CharField(max_length=255)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['alias']),
-        ]
 
     def __str__(self):
         return self.alias
@@ -49,7 +41,6 @@ class LibraryCategory(models.Model):
 
     class Meta:
         ordering = ["name"]
-        verbose_name_plural = "Library categories"
 
     def __str__(self):
         return self.name
@@ -70,7 +61,7 @@ class LibrarySubmission(models.Model):
     description = models.TextField(blank=True)
     url = models.URLField(blank=True)
 
-    # FIXED: Consistent field naming
+    # This is the ONLY user FK we want:
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -98,26 +89,12 @@ class LibrarySubmission(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=['-created_at']),
-            models.Index(fields=['status']),
-        ]
 
     def __str__(self):
         return self.title
 
 
 class LibraryItem(models.Model):
-    # FIXED: Added missing item_type field
-    ITEM_TYPE_CHOICES = [
-        ('book', 'Book'),
-        ('article', 'Article'),
-        ('video', 'Video'),
-        ('audio', 'Audio'),
-        ('document', 'Document'),
-        ('other', 'Other'),
-    ]
-
     category = models.ForeignKey(
         LibraryCategory,
         null=True,
@@ -128,14 +105,6 @@ class LibraryItem(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     url = models.URLField(blank=True)
-
-    # ADDED: Missing item_type field
-    item_type = models.CharField(
-        max_length=50,
-        choices=ITEM_TYPE_CHOICES,
-        default='other',
-        blank=True
-    )
 
     # Moderation / provenance
     is_published = models.BooleanField(default=False, db_index=True)
@@ -158,10 +127,6 @@ class LibraryItem(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=['-created_at']),
-            models.Index(fields=['is_published']),
-        ]
 
     def __str__(self):
         return self.title
@@ -199,10 +164,6 @@ class LibraryEvent(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=['-created_at']),
-            models.Index(fields=['event_type']),
-        ]
 
     def __str__(self):
         who = self.user or "anonymous"
@@ -229,9 +190,6 @@ class ImportJob(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=['-created_at']),
-        ]
 
     def __str__(self):
         return f"{self.job_type} ({self.created_at})"
@@ -257,11 +215,6 @@ class SearchQueryLog(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=['-created_at']),
-            models.Index(fields=['source']),
-            models.Index(fields=['has_results']),
-        ]
 
     def __str__(self):
         return f"{self.source}: {self.query[:50]}"
