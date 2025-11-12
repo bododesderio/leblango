@@ -36,19 +36,41 @@ class DictionaryEntrySerializer(serializers.ModelSerializer):
         )
 
 
+class LibraryCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LibraryCategory
+        fields = ("id", "name", "slug")
+        read_only_fields = ("slug",)
+
+
 class LibraryItemSerializer(serializers.ModelSerializer):
-    # Read-only label for category in responses (as requested)
-    category = serializers.SlugRelatedField(read_only=True, slug_field="name")
+    category = serializers.SlugRelatedField(
+        read_only=True, 
+        slug_field="name"
+    )
 
     class Meta:
         model = LibraryItem
-        fields = ("id", "title", "description", "category", "created_at")
+        fields = (
+            "id", 
+            "title", 
+            "description", 
+            "url",
+            "category",
+            "is_published",
+            "created_at"
+        )
+        read_only_fields = ("created_at",)
 
 
 # ------------ Auth / Accounts ------------ #
 
 class SignUpSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
+    password = serializers.CharField(
+        write_only=True, 
+        min_length=8,
+        style={'input_type': 'password'}
+    )
     email = serializers.EmailField(required=False, allow_blank=True)
 
     class Meta:
@@ -61,9 +83,15 @@ class SignUpSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value: str):
-        # Only enforce uniqueness if provided
         if value and User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError(_("Email already in use."))
+        return value
+
+    def validate_password(self, value: str):
+        if len(value) < 8:
+            raise serializers.ValidationError(_("Password must be at least 8 characters."))
+        if value.isdigit():
+            raise serializers.ValidationError(_("Password cannot be entirely numeric."))
         return value
 
     def create(self, validated_data):
@@ -79,11 +107,12 @@ class SignUpSerializer(serializers.ModelSerializer):
 # ------------ Library Submissions / Events ------------ #
 
 class LibrarySubmissionSerializer(serializers.ModelSerializer):
-    # Accept category via slug on write; render as slug on read
-    category = serializers.SlugRelatedField(
-        queryset=LibraryCategory.objects.all(),
-        slug_field="slug",
-    )
+    """
+    FIXED: Only use fields that actually exist in LibrarySubmission model
+    Removed: category, source_url (these don't exist)
+    """
+    submitted_by = serializers.StringRelatedField(read_only=True)
+    reviewed_by = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = LibrarySubmission
@@ -91,24 +120,56 @@ class LibrarySubmissionSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "description",
-            "category",
-            "source_url",
+            "url",  # FIXED: was 'source_url' 
             "status",
+            "submitted_by",
+            "reviewed_by",
+            "reviewed_at",
+            "rejection_reason",
             "created_at",
         )
-        read_only_fields = ("status", "created_at")
+        read_only_fields = (
+            "status", 
+            "submitted_by",
+            "reviewed_by",
+            "reviewed_at",
+            "created_at"
+        )
 
 
 class LibraryEventSerializer(serializers.ModelSerializer):
-    # Model choices on event_type already validate allowed values
+    """
+    FIXED: Removed 'meta' field that doesn't exist in model
+    """
+    user = serializers.StringRelatedField(read_only=True)
+    item_title = serializers.CharField(source='item.title', read_only=True)
+
     class Meta:
         model = LibraryEvent
-        fields = ("id", "item", "event_type", "meta", "created_at")
-        read_only_fields = ("created_at",)
+        fields = (
+            "id", 
+            "item", 
+            "item_title",
+            "event_type", 
+            "user",
+            "created_at"
+        )
+        read_only_fields = ("created_at", "user")
 
 
 class ImportJobSerializer(serializers.ModelSerializer):
+    created_by = serializers.StringRelatedField(read_only=True)
+
     class Meta:
         model = ImportJob
-        fields = "__all__"
-        read_only_fields = "__all__"
+        fields = (
+            "id",
+            "job_type",
+            "created_by",
+            "created_at",
+            "total_rows",
+            "success_rows",
+            "failed_rows",
+            "log",
+        )
+        read_only_fields = fields  # All fields are read-only

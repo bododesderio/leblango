@@ -1,86 +1,91 @@
 import logging
-
-from django.core.exceptions import PermissionDenied
-from django.http import Http404
-from rest_framework.views import exception_handler as drf_exception_handler
+from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import Http404
+from django.db import IntegrityError
 
 logger = logging.getLogger(__name__)
 
 
 def custom_exception_handler(exc, context):
     """
-    Normalize all API errors to:
-
-    {
-        "success": False,
-        "code": "validation_error|not_found|permission_denied|unauthenticated|server_error|...",
-        "detail": "...",
-        "errors": {...}  # when applicable
-    }
+    Custom exception handler for DRF that provides consistent error responses
+    and logs errors appropriately.
     """
+    # Call REST framework's default exception handler first
+    response = exception_handler(exc, context)
 
-    response = drf_exception_handler(exc, context)
+    # Get context details
+    view = context.get('view', None)
+    request = context.get('request', None)
 
+    error_details = {
+        'exception_type': type(exc).__name__,
+        'exception_message': str(exc),
+        'view': view.__class__.__name__ if view else 'Unknown',
+        'path': request.path if request else 'Unknown',
+        'method': request.method if request else 'Unknown',
+    }
+
+    # Handle DRF exceptions (response is already created)
     if response is not None:
-        raw = response.data
+        # Standardize the error response format
+        if isinstance(response.data, dict):
+            response.data['error_type'] = type(exc).__name__
 
-        # Normalize raw detail
-        if isinstance(raw, str):
-            detail = raw
-            errors = None
-        elif isinstance(raw, list):
-            detail = raw
-            errors = None
-        elif isinstance(raw, dict):
-            # if "detail" present, treat rest as errors; if not, treat dict as errors
-            if "detail" in raw:
-                detail = raw["detail"]
-                errors = {k: v for k, v in raw.items() if k != "detail"} or None
-            else:
-                detail = "Validation error."
-                errors = raw
-        else:
-            detail = str(raw)
-            errors = None
-
-        # Map to a code
-        code = "error"
-
-        if isinstance(exc, Http404):
-            code = "not_found"
-        elif isinstance(exc, PermissionDenied):
-            code = "permission_denied"
-        elif response.status_code == status.HTTP_400_BAD_REQUEST:
-            code = "validation_error"
-        elif response.status_code == status.HTTP_401_UNAUTHORIZED:
-            code = "unauthenticated"
-        elif response.status_code == status.HTTP_403_FORBIDDEN:
-            code = "permission_denied"
-        elif response.status_code == status.HTTP_404_NOT_FOUND:
-            code = "not_found"
-        elif 500 <= response.status_code < 600:
-            code = "server_error"
-
-        response.data = {
-            "success": False,
-            "code": code,
-            "detail": detail,
-        }
-        if errors is not None:
-            response.data["errors"] = errors
-
+        logger.warning(
+            f"API Error: {error_details['exception_type']} - {error_details['exception_message']}",
+            extra=error_details
+        )
         return response
 
-    # Non-DRF or unexpected: log + generic 500
-    logger.exception("Unhandled API exception", exc_info=exc)
+    # Handle Django's Http404
+    if isinstance(exc, Http404):
+        logger.info(f"404 Not Found: {error_details['path']}")
+        return Response(
+            {
+                'detail': 'Not found.',
+                'error_type': 'NotFound'
+            },
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Handle Django's ValidationError
+    if isinstance(exc, DjangoValidationError):
+        logger.warning(f"Validation Error: {str(exc)}", extra=error_details)
+        return Response(
+            {
+                'detail': 'Validation error.',
+                'errors': exc.message_dict if hasattr(exc, 'message_dict') else [str(exc)],
+                'error_type': 'ValidationError'
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Handle database integrity errors
+    if isinstance(exc, IntegrityError):
+        logger.error(f"Database Integrity Error: {str(exc)}", extra=error_details)
+        return Response(
+            {
+                'detail': 'Database integrity error. The operation violates a database constraint.',
+                'error_type': 'IntegrityError'
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Handle any other unexpected exceptions
+    logger.error(
+        f"Unhandled Exception: {error_details['exception_type']} - {error_details['exception_message']}",
+        extra=error_details,
+        exc_info=True
+    )
 
     return Response(
         {
-            "success": False,
-            "code": "server_error",
-            "detail": "An unexpected error occurred. Please try again.",
+            'detail': 'An unexpected error occurred. Please try again later.',
+            'error_type': 'InternalServerError'
         },
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
