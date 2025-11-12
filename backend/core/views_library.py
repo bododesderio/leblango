@@ -190,7 +190,7 @@ class LibrarySubmissionReject(APIView):
     """
     Reject a library submission.
     POST /api/admin/library/submissions/<int:pk>/reject
-    
+
     Optional JSON body:
     {
         "reason": "Explanation for rejection"
@@ -216,12 +216,12 @@ class LibrarySubmissionReject(APIView):
         # Update submission status
         submission.status = "rejected"
         submission.reviewed_by = request.user
-        
+
         # Optionally store rejection reason if your model has that field
         reason = request.data.get("reason", "")
         if reason and hasattr(submission, "rejection_reason"):
             submission.rejection_reason = reason
-        
+
         submission.save()
 
         return Response(

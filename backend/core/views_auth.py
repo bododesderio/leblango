@@ -33,7 +33,7 @@ class SignUp(APIView):
     def post(self, request):
         """
         Create a new user account.
-        
+
         Rate limited to 5 attempts per minute to prevent spam accounts.
         Returns an authentication token upon successful registration.
         """
@@ -84,7 +84,7 @@ class SignIn(APIView):
     def post(self, request):
         """
         Authenticate a user and return an auth token.
-        
+
         Rate limited to 5 attempts per minute to prevent brute force attacks.
         """
         username = (request.data.get("username") or "").strip()
