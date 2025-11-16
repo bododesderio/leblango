@@ -3,6 +3,11 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+
 # ------------------------------------------------
 # Base directory
 # ------------------------------------------------
@@ -326,3 +331,77 @@ SPECTACULAR_SETTINGS = {
 # Feature Flags
 # ------------------------------------------------
 FUZZY_SEARCH_ENABLED = os.getenv("FUZZY_SEARCH_ENABLED", "true").lower() == "true"
+
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+SENTRY_ENVIRONMENT = os.getenv("SENTRY_ENVIRONMENT", "development" if DEBUG else "production")
+SENTRY_TRACES_SAMPLE_RATE = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))  # 10% sampling
+
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=SENTRY_ENVIRONMENT,
+        integrations=[
+            DjangoIntegration(
+                transaction_style='url',
+                middleware_spans=True,
+                signals_spans=True,
+            ),
+            RedisIntegration(),
+            LoggingIntegration(
+                level=logging.INFO,        # Capture info and above as breadcrumbs
+                event_level=logging.ERROR  # Send errors as events
+            ),
+        ],
+        
+        # Performance monitoring
+        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+        
+        # Profiling (optional)
+        profiles_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+        
+        # Set in_app_include to identify project code
+        in_app_include=['core', 'leblango'],
+        
+        # Filter out health checks
+        ignore_errors=[
+            'HealthCheckError',
+        ],
+        
+        # Before send hook to filter sensitive data
+        before_send=lambda event, hint: filter_sensitive_data(event, hint),
+        
+        # Release tracking (use git commit hash or version)
+        release=os.getenv("SENTRY_RELEASE", None),
+        
+        # Send default PII (set to False for privacy)
+        send_default_pii=False,
+    )
+    
+    print(f"✅ Sentry initialized: {SENTRY_ENVIRONMENT} environment")
+else:
+    if not DEBUG:
+        print("⚠️  WARNING: SENTRY_DSN not set - error tracking disabled")
+
+
+def filter_sensitive_data(event, hint):
+    """
+    Filter sensitive data from Sentry events before sending.
+    """
+    # Remove sensitive headers
+    if 'request' in event:
+        headers = event['request'].get('headers', {})
+        sensitive_headers = ['Authorization', 'Cookie', 'X-Auth-Token']
+        for header in sensitive_headers:
+            if header in headers:
+                headers[header] = '[Filtered]'
+    
+    # Remove sensitive POST data
+    if 'request' in event and 'data' in event['request']:
+        data = event['request']['data']
+        if isinstance(data, dict):
+            sensitive_fields = ['password', 'token', 'secret', 'api_key', 'credit_card']
+            for field in sensitive_fields:
+                if field in data:
+                    data[field] = '[Filtered]'
+    
+    return event

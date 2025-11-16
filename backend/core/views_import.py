@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+import codecs
 
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -62,7 +63,15 @@ class DictionaryImportCSVView(BaseImportView):
         log = ["Starting dictionary CSV import."]
 
         try:
-            data = upload.read().decode("utf-8-sig")
+            # Read file content as bytes
+            raw_data = upload.read()
+            
+            # Decode - utf-8-sig automatically strips byte-level BOM
+            data = raw_data.decode("utf-8-sig")
+            
+            # Strip Unicode BOM character if present (handles double-BOM case)
+            if data.startswith('\ufeff'):
+                data = data[1:]
         except UnicodeDecodeError:
             return Response(
                 {"detail": "Unable to decode CSV as UTF-8."},
@@ -113,23 +122,17 @@ class DictionaryImportJSONView(BaseImportView):
     """
     POST /api/admin/import/dictionary/json
     {
-      "entries": [
+        "entries": [
         {"lemma": "...", "gloss_ll": "...", "gloss_en": "..."},
         ...
-      ]
+    ]
     }
     """
 
     def post(self, request):
+        # FIXED: Removed request.body access - DRF already parsed it
         raw = request.data.get("entries")
-        if raw is None and request.body:
-            # allow raw JSON body
-            try:
-                parsed = json.loads(request.body.decode("utf-8"))
-                raw = parsed.get("entries")
-            except Exception:
-                pass
-
+        
         if not isinstance(raw, list):
             return Response(
                 {"detail": "Expected 'entries' as a list."},
@@ -195,15 +198,9 @@ class LibraryImportJSONView(BaseImportView):
     job_type = "library"
 
     def post(self, request):
+        # FIXED: Removed request.body access - DRF already parsed it
         raw = request.data.get("items")
-        if raw is None and request.body:
-            # allow raw JSON body
-            try:
-                parsed = json.loads(request.body.decode("utf-8"))
-                raw = parsed.get("items")
-            except Exception:
-                pass
-
+        
         if not isinstance(raw, list):
             return Response(
                 {"detail": "Expected 'items' as a list."},

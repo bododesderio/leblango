@@ -1,19 +1,33 @@
+"""
+URL Configuration for Leblango project.
+"""
 from django.contrib import admin
 from django.urls import path, include
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
-from core.views_health import HealthzView, HomeView
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+)
+from core.views_health import healthz, health_detail, readiness, liveness
+
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Admin
+    path('admin/', admin.site.urls),
 
-    path("", HomeView.as_view(), name="home"),
-    path("healthz/", HealthzView.as_view(), name="healthz"),
-    path("api/healthz", HealthzView.as_view(), name="api-healthz"),
-    path("api/health/", HealthzView.as_view(), name="api-health"),
+    # Health checks
+    path('healthz/', healthz, name='healthz'),
+    path('health/', health_detail, name='health-detail'),
+    path('readiness/', readiness, name='readiness'),
+    path('liveness/', liveness, name='liveness'),
 
-    path("api/", include("core.urls")),
+    # API
+    path('api/', include('core.urls')),
 
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
-    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    # OpenAPI Schema & Docs
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path(
+        'api/docs/',
+        SpectacularSwaggerView.as_view(url_name='schema'),
+        name='swagger-ui'
+    ),
 ]

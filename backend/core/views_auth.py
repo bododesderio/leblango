@@ -87,6 +87,8 @@ class SignIn(APIView):
 
         Rate limited to 5 attempts per minute to prevent brute force attacks.
         """
+        from django.contrib.auth import get_user_model
+        
         username = (request.data.get("username") or "").strip()
         password = (request.data.get("password") or "").strip()
 
@@ -96,17 +98,25 @@ class SignIn(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # FIXED: Check if user exists and is inactive BEFORE authenticate
+        # authenticate() returns None for both wrong password AND inactive users
+        User = get_user_model()
+        try:
+            user_obj = User.objects.get(username=username)
+            if not user_obj.is_active:
+                return Response(
+                    {"detail": "Account is disabled."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except User.DoesNotExist:
+            pass  # Will be handled by authenticate below
+        
         user = authenticate(username=username, password=password)
+        
         if not user:
             return Response(
                 {"detail": "Invalid credentials."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not user.is_active:
-            return Response(
-                {"detail": "Account is disabled."},
-                status=status.HTTP_403_FORBIDDEN,
             )
 
         token, _ = Token.objects.get_or_create(user=user)

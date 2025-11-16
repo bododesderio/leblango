@@ -51,18 +51,20 @@ class QueryHealthSummary(APIView):
         no_res = qs.filter(has_results=False).count()
 
         # Top no-result queries (these drive your backlog)
+        # FIXED: Added secondary sort by 'query' for deterministic ordering
         top_missing = (
             qs.filter(has_results=False)
             .values("query", "source")
             .annotate(times=Count("id"))
-            .order_by("-times")[:limit]
+            .order_by("-times", "query")[:limit]  # Added 'query' for stable sort
         )
 
         # Top queries overall
+        # FIXED: Added secondary sort by 'query' for deterministic ordering
         top_queries = (
             qs.values("query", "source")
             .annotate(times=Count("id"))
-            .order_by("-times")[:limit]
+            .order_by("-times", "query")[:limit]  # Added 'query' for stable sort
         )
 
         payload = {

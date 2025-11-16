@@ -11,6 +11,8 @@ volumes:
   redis_data:
   pgadmin_data:
     driver: local
+  backup_data:  # NEW: Persistent backup storage
+    driver: local
 
 services:
   postgres_db:
@@ -37,6 +39,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    # Grant superuser for test database extension creation
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
 
   redis:
     image: redis:alpine
@@ -85,7 +92,6 @@ services:
     env_file:
       - .env
     environment:
-      # CRITICAL FIX: No defaults - must be set in .env
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     volumes:
@@ -111,6 +117,7 @@ services:
     volumes:
       - static_files:/app/staticfiles
       - media_files:/app/media
+      - backup_data:/app/backups  # NEW: Persistent backup storage
       - ./logs:/app/logs
     env_file:
       - .env
@@ -124,6 +131,14 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # Backup settings
+      BACKUP_DIR: /app/backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      # Sentry monitoring
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:6200/healthz/ || exit 1"]
